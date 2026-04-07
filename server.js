@@ -114,6 +114,36 @@ const RESEARCH_SCHEMA = {
         required: ["Name", "StageName", "Type", "NextStep"],
       },
 
+      // ── Buying Trigger (Step 1 — gates email generation) ──
+      buying_trigger: {
+        type: "object",
+        description: "The verifiable event that justifies reaching out NOW. Must be found before emails are written. If none found, found = false and email_variants must be empty.",
+        properties: {
+          found: {
+            type: "boolean",
+            description: "true if a specific, verifiable trigger was found with a source URL. false if no trigger was found after searching.",
+          },
+          trigger_type: {
+            type: "string",
+            description: "One of: M&A, Expansion, Leadership Change, Carrier Pain, Cash Management Event, None",
+            enum: ["M&A", "Expansion", "Leadership Change", "Carrier Pain", "Cash Management Event", "None"],
+          },
+          trigger_summary: {
+            type: "string",
+            description: "Plain English description of what happened. Be specific: company names, dates, locations, numbers. This becomes the first sentence of the email. If none found, write 'No verifiable trigger found.'",
+          },
+          trigger_date: {
+            type: "string",
+            description: "Approximate date or month/year of the event. Leave blank if unknown.",
+          },
+          trigger_source_url: {
+            type: "string",
+            description: "Direct URL to the news article, press release, LinkedIn post, or filing where this was found. Required when found = true.",
+          },
+        },
+        required: ["found", "trigger_type", "trigger_summary"],
+      },
+
       // ── Intelligence (not in SF, for the rep) ──
       intelligence: {
         type: "object",
@@ -166,7 +196,7 @@ const RESEARCH_SCHEMA = {
       // ── Outreach ──
       email_variants: {
         type: "array",
-        description: "2-3 personalized email drafts. Each under 150 words. First line must reference something specific about the prospect, not NST.",
+        description: "TRIGGER GATE: Only populate this array if buying_trigger.found is true. If buying_trigger.found is false, return an empty array [] — do NOT write a generic email. When a trigger exists, write 2 email variants. Each must be under 100 words in the body. Structure: trigger sentence → bridge → one NST proof point → soft CTA. No banned words or phrases. No bullet points in body. Lead with the trigger, not with NST.",
         items: {
           type: "object",
           properties: {
@@ -225,6 +255,7 @@ const RESEARCH_SCHEMA = {
       "sf_account",
       "sf_contact",
       "sf_opportunity",
+      "buying_trigger",
       "intelligence",
       "email_variants",
       "call_script",
@@ -346,7 +377,25 @@ function buildResearchPrompt(input) {
   if (input.existing_sf_notes) prompt += `Existing CRM notes: ${input.existing_sf_notes}\n`;
   if (input.sequence_goal) prompt += `Sequence goal: ${input.sequence_goal}\n`;
 
-  prompt += `\nClassify this prospect into the correct NST vertical, assess fit, and generate Salesforce-ready fields plus personalized outreach. Use the output schema exactly.`;
+  prompt += `
+
+RUN IN THIS ORDER:
+
+1. TRIGGER HUNT FIRST — Before writing anything, search for verifiable events in the last 6 months:
+   - M&A: acquisitions, mergers, new ownership, PE investment
+   - Expansion: new locations opening, new states entered (especially NJ, NY, PA, CT, DE, MA, IL, MO)
+   - Leadership change: new CFO, COO, SVP/VP Operations hired in last 90 days
+   - Carrier pain: any mention of Brink's, Loomis, Garda, or Dunbar issues in news, reviews, job postings
+   - Cash management events: new smart safe program, ATM deployment, MSB licensing change
+
+   If you find a trigger: record it with the source URL. Set buying_trigger.found = true.
+   If no trigger found after searching: set buying_trigger.found = false, return email_variants = [].
+
+2. ENRICH THE ACCOUNT — Classify vertical, fill Salesforce fields, score fit.
+
+3. WRITE EMAILS — Only if buying_trigger.found = true. Follow email writing rules exactly. Under 100 words. No banned words. Trigger goes first, NST goes second.
+
+Use the output schema exactly.`;
   return prompt;
 }
 
@@ -433,7 +482,7 @@ app.use(express.json());
 app.get("/health", (_req, res) => {
   res.json({
     status: "ok",
-    version: "2.0.0",
+    version: "2.1.0",
     model: MODEL,
     endpoints: ["/research", "/call-prep", "/enrich"],
     timestamp: new Date().toISOString(),
@@ -447,7 +496,7 @@ app.post("/research", async (req, res) => {
 
   try {
     const userPrompt = buildResearchPrompt(req.body);
-    const response = await callPerplexity(SYSTEM_PROMPT, userPrompt, RESEARCH_SCHEMA);
+    const response = await callPerplexity(SYSTEM_PROMPT, userPrompt, RESEARCH_SCHEMA, 0.35);
     return res.json(response);
   } catch (err) {
     console.error("Research endpoint error:", err);
@@ -506,7 +555,7 @@ app.listen(PORT, "0.0.0.0", () => {
   console.log(`\n  NST SDR Intelligence Agent v2`);
   console.log(`  Model: ${MODEL}`);
   console.log(`  Endpoints:`);
-  console.log(`    POST /research    — Full prospect research + outreach`);
+  console.log(`    POST /research    — Full prospect research + outreach (trigger-gated)`);
   console.log(`    POST /call-prep   — Pre-meeting briefing`);
   console.log(`    POST /enrich      — Quick account enrichment`);
   console.log(`    GET  /health      — Health check`);
