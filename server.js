@@ -114,6 +114,29 @@ const RESEARCH_SCHEMA = {
         required: ["Name", "StageName", "Type", "NextStep"],
       },
 
+      // ── Vault Zone ──
+      vault_zone: {
+        type: "object",
+        description: "Which NST vault would service this prospect, and how close they are to the route.",
+        properties: {
+          serving_vault: {
+            type: "string",
+            description: "The NST vault that would service this account: Highspire PA, Columbus OH, Worcester MA, Fenton MO, Burnsville MN, or Joliet IL",
+            enum: ["Highspire PA", "Columbus OH", "Worcester MA", "Fenton MO", "Burnsville MN", "Joliet IL", "Unknown"],
+          },
+          zone: {
+            type: "string",
+            description: "Green = in existing route range. Yellow = on a passing route. Red = out of range, needs special routing. Unknown = cannot determine.",
+            enum: ["Green", "Yellow", "Red", "Unknown"],
+          },
+          county: {
+            type: "string",
+            description: "The county where the prospect's primary location is based.",
+          },
+        },
+        required: ["serving_vault", "zone"],
+      },
+
       // ── Buying Trigger (Step 1 — gates email generation) ──
       buying_trigger: {
         type: "object",
@@ -255,6 +278,7 @@ const RESEARCH_SCHEMA = {
       "sf_account",
       "sf_contact",
       "sf_opportunity",
+      "vault_zone",
       "buying_trigger",
       "intelligence",
       "email_variants",
@@ -377,6 +401,9 @@ function buildResearchPrompt(input) {
   if (input.existing_sf_notes) prompt += `Existing CRM notes: ${input.existing_sf_notes}\n`;
   if (input.sequence_goal) prompt += `Sequence goal: ${input.sequence_goal}\n`;
 
+  if (input.vault_focus) prompt += `Vault focus for this prospecting run: ${input.vault_focus}\n`;
+  if (input.target_counties) prompt += `Target counties: ${input.target_counties}\n`;
+
   prompt += `
 
 RUN IN THIS ORDER:
@@ -482,7 +509,7 @@ app.use(express.json());
 app.get("/health", (_req, res) => {
   res.json({
     status: "ok",
-    version: "2.1.0",
+    version: "2.3.0",
     model: MODEL,
     endpoints: ["/research", "/call-prep", "/enrich"],
     timestamp: new Date().toISOString(),

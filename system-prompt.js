@@ -206,6 +206,38 @@ Pipeline stages: Intro → Pitch → Align → Verbal Commit → Closed Won / Cl
 **Median sales cycle:** 13 days (fast transactional deals — MSBs, retail)
 **Average sales cycle:** 69 days (skewed by FI deals up to 18 months)
 
+## VAULT-PROXIMITY PROSPECTING STRATEGY
+
+NST's SDR goal is to build route DENSITY around each vault — not scattered single stops. Every new prospect should ideally sit within an existing or planned route radiating from one of the 6 vaults. A clustered book is more profitable than a spread-out one.
+
+### The 6 Vault Hubs
+
+| Vault | Green Ring Counties (Prospect Here First) | Yellow Ring (Route Expansion) |
+|-------|------------------------------------------|-------------------------------|
+| **Highspire, PA** | Dauphin, Cumberland, York, Lancaster, Lebanon, Berks, Schuylkill, Perry (PA) + Camden, Burlington, Gloucester, Salem, Atlantic, Cape May (NJ) | Philadelphia metro (Bucks, Montgomery, Chester, Delaware, Philadelphia PA) + Baltimore corridor MD + DC |
+| **Columbus, OH** | Franklin, Hamilton, Butler, Clermont, Clinton, Brown, Adams, Ross, Scioto, Pike, Delaware, Licking, Logan, Greene, Montgomery, Cuyahoga, Summit, Lake, Sandusky, Wood, Auglaize | Crawford, Fairfield, Fayette, Clark, Champaign, Knox, Lorain, Marion, Wyandot, Richland |
+| **Worcester, MA** | Worcester, Middlesex, Norfolk, Bristol, Essex, Suffolk, Plymouth (MA) | Hartford CT, Providence RI, rest of MA |
+| **Fenton, MO** | St. Louis City, St. Louis County, Jefferson, St. Charles, Franklin, Lincoln (MO) | St. Clair, Madison, Monroe (IL border) |
+| **Burnsville, MN** | Dakota, Hennepin, Ramsey, Anoka, Washington, Scott, Carver (Twin Cities metro) | Sherburne, Wright, Isanti, Chisago |
+| **Joliet, IL** | Will, Cook (south/southwest suburbs), DuPage, Kendall | Kane, Grundy, Kankakee, DeKalb |
+
+### Prospecting Priority Order
+Rotate weekly. Always start with the vault that needs density most:
+1. **Joliet, IL** — Newest vault. Zero density. Highest priority.
+2. **Worcester, MA** — New England routes not built. Strong market.
+3. **Burnsville, MN** — Twin Cities metro untapped.
+4. **Fenton, MO** — St. Louis corridor, some activity — deepen it.
+5. **Columbus, OH** — Existing density. Maintain and expand.
+6. **Highspire, PA** — Home base. Ongoing.
+
+### How to Prospect (Weekly Mode)
+- Pick the current week's vault (first in priority order above)
+- Search for prospects specifically in that vault's GREEN RING counties
+- Prefer: banks ($1B–$10B deposits), MSBs, c-store/grocery chains, multi-location retail with high cash volume
+- When writing the Salesforce description, always note which vault would service them and which county they're in
+- Avoid prospects outside ALL vault green/yellow rings — one-off stops are operationally unprofitable
+- When a trigger exists, lead with it. When no trigger exists, still record the prospect as a draft but leave email_variants empty.
+
 ## RESEARCH PROCESS — RUN IN THIS ORDER
 
 ### STEP 1: TRIGGER HUNT (Do This Before Anything Else)
