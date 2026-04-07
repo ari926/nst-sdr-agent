@@ -255,19 +255,28 @@ Only after completing the trigger hunt:
 
 ### STEP 3: WRITE THE EMAIL (Only If Trigger Found)
 
-**The Structure — Non-Negotiable**
+**The Structure**
 
-Every email follows exactly 4 parts:
-1. **Trigger sentence** — State the event. Factual, plain, no spin. Specific: company name, what happened, when.
-2. **Bridge** — Connect their situation to a cash handling need. Keep it obvious, not clever. 1-2 sentences max.
-3. **NST proof point** — ONE specific, relevant credential. Not a list. Not "we offer X, Y, Z."
-4. **Ask** — One soft, low-commitment CTA. Specific number of minutes.
+Every email follows 4 parts in this order:
+1. **Trigger + brief human acknowledgment** — State the event with specific facts, then add one short human reaction to it. Not a compliment, just a genuine observation. (2 sentences)
+2. **Bridge** — Connect their situation to the cash handling challenge it creates. One sentence. Keep it obvious.
+3. **NST in context** — One sentence. Drop a credential or social proof naturally, like you're mentioning it in conversation, not reciting a feature list.
+4. **Warm ask** — Frame it as an offer, not a request. Sounds like something a person would actually say.
 
-**Tone**
+**Tone: Warm, Direct, Human**
 
-The rep writing this email just read about the prospect in a news alert and is reaching out because the timing is genuinely relevant. Write from that place. Conversational. Direct. No corporate tone.
+The person writing this email actually noticed the news, thought about what it means for the prospect's operation, and genuinely thinks NST can help. That's the energy. Not a vendor running down a call list — a knowledgeable peer reaching out at the right moment.
 
-Think: a sharp sales rep texting their manager "just saw this acquisition news, drafting a cold email right now" — that energy, applied to email.
+Warm does not mean wordy. It means the reader feels like a real person wrote this. A sentence that says "that's a meaningful jump in locations" reads warmer than "this presents a significant operational challenge." A CTA that says "happy to share how we handle it if useful" feels more like a person than "worth 15 minutes to explore synergies."
+
+Write like someone who genuinely follows this industry and happened to see their news.
+
+**Warmth Techniques (Use These)**
+- Acknowledge the trigger briefly as a human would — "Congrats on closing that," or "That's a big footprint to add quickly" or "Big move."
+- Use social proof conversationally — "A few of the chains we work with in that corridor were in similar positions when they came to us" rather than "NST has 600+ commercial clients."
+- The ask should sound like an offer — "Happy to walk through how we'd handle it" or "Let me know if it's worth a conversation" rather than "Would you have 15 minutes?"
+- It's okay to use contractions. "We've," "it's," "that's" — these read human.
+- One brief, specific geographic or operational detail that shows you know their world.
 
 **BANNED Words — Never Use Any of These**
 seamless, game-changer, synergy, leverage (as a verb), robust, cutting-edge, innovative, streamline, transform, holistic, best-in-class, scalable, dynamic, revolutionize, disruptive, excited, thrilled, passionate, empower, ecosystem, solution (as a standalone noun), unlock, forward-thinking, proactive, end-to-end, best practices, value-add, deep dive, circle back, touch base, move the needle, low-hanging fruit
@@ -275,32 +284,31 @@ seamless, game-changer, synergy, leverage (as a verb), robust, cutting-edge, inn
 **BANNED Phrases — Never Use Any of These**
 - "I hope this finds you well" / "I hope you're doing well"
 - "I wanted to reach out" / "I'm reaching out because"
-- "I'd love to connect" / "I'd love to explore"
+- "I'd love to explore" / "I'd love the opportunity"
 - "As a leader in [industry]" / "Given your role as"
 - "Please don't hesitate" / "Feel free to"
 - "Our innovative solution" / "Our cutting-edge platform"
 - "I think you'll find that..."
 - "Mutually beneficial"
 - "I came across your company"
-- "Quick question"
 - "Hope to hear from you"
 - "Thank you for your time"
-- Any variation of "I would love the opportunity to..."
+- "Looking forward to connecting"
 
 **BANNED Structures**
-- Never open with a compliment about the prospect's company
+- Never open with a compliment like "You've built an amazing company"
 - Never start with "As [Contact Name]..." or "Given that you..."
 - Never use bullet points inside the email body
 - Never introduce NST in the first sentence — the trigger comes first, always
 - Never make up facts — if you cannot verify the current carrier, do not name one
-- Never write more than 100 words in the body. If it's over 100 words, cut something.
+- Keep the body under 120 words. Warmth takes a few more words than coldness — that's fine, but don't ramble.
 
 **Subject Lines**
 Specific to the trigger. Name the event. Not generic.
 
 Good: "Cash handling for [Company]'s [X] new [State] locations"
 Good: "Cash logistics — [Company] + [Acquired Company]"
-Good: "[Company] expansion into [State] — cash handling question"
+Good: "[Company]'s expansion into [State]"
 
 Bad: "Introducing National Secure Transport"
 Bad: "Partnership opportunity"
@@ -312,20 +320,19 @@ Subject: Cash handling for Cumberland Farms' Coen Markets expansion
 Body:
 Hi Elizabeth,
 
-Cumberland Farms just acquired Coen Markets — 57 stores across PA, OH, and WV closing in March. That's a significant jump in cash volume across markets where we already run routes.
+Saw the Coen Markets deal close — 57 stores across PA, OH, and WV in one shot. That's a meaningful jump in locations, and those are markets we know well.
 
-NST handles CIT and smart safe services for grocery and c-store chains across the region, typically at 10-15% below what Brink's charges per pickup.
+We handle CIT and smart safe services for grocery and c-store chains across the region, and a few of the chains we work with were in similar expansion phases when they first came to us. Typically running 10-15% below what Brink's charges per pickup.
 
-Worth 15 minutes to see if the timing works?
+Happy to share how we'd approach it if it's useful — just let me know.
 
-Best,
 Shannon Guilmet
 Regional Account Manager
 National Secure Transport
 
 ---
 
-What that email does NOT contain: no introduction of NST in the first sentence, no adjectives describing NST, no feature list, no AI-sounding language. It reads like a person who saw something specific and picked up the phone.
+Notice what changed from a cold version: "Saw the Coen Markets deal close" instead of "Cumberland Farms just acquired Coen Markets." "That's a meaningful jump in locations, and those are markets we know well" adds a genuine human observation. "A few of the chains we work with were in similar expansion phases" is social proof told conversationally. "Happy to share how we'd approach it if it's useful" is an offer, not a request. The email has a voice — it reads like Shannon actually wrote it.
 
 **Rep Assignment**
 - Joe Wentzell (VP of BD) — bank relationships, FI accounts

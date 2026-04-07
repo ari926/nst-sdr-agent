@@ -496,7 +496,7 @@ app.post("/research", async (req, res) => {
 
   try {
     const userPrompt = buildResearchPrompt(req.body);
-    const response = await callPerplexity(SYSTEM_PROMPT, userPrompt, RESEARCH_SCHEMA, 0.35);
+    const response = await callPerplexity(SYSTEM_PROMPT, userPrompt, RESEARCH_SCHEMA, 0.5);
     return res.json(response);
   } catch (err) {
     console.error("Research endpoint error:", err);
