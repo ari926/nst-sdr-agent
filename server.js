@@ -8,6 +8,7 @@
  *   POST /research      → Full prospect research + outreach (primary)
  *   POST /call-prep     → Pre-meeting briefing for a known account
  *   POST /enrich        → Quick account enrichment (minimal, fast)
+ *   POST /create-sdr-draft → Validate, name, assign, and notify for SDR Draft creation
  *   GET  /health        → { status: "ok" }
  */
 
@@ -511,7 +512,7 @@ app.get("/health", (_req, res) => {
     status: "ok",
     version: "2.3.0",
     model: MODEL,
-    endpoints: ["/research", "/call-prep", "/enrich"],
+    endpoints: ["/research", "/call-prep", "/enrich", "/create-sdr-draft"],
     timestamp: new Date().toISOString(),
   });
 });
@@ -575,6 +576,165 @@ app.post("/nst-sdr-agent", async (req, res) => {
     console.error("Legacy endpoint error:", err);
     return res.status(err.status || 502).json({ error: "API call failed", message: err.message });
   }
+});
+
+// ─── SDR Draft Creation Logic ───────────────────────────────────────────────
+
+// FI product keywords that route to John Tucker
+const JOHN_TUCKER_PRODUCTS = ["FI Branch", "FI Virtual Vault"];
+
+// Round-robin state (persists in memory for the lifetime of the process)
+const ROUND_ROBIN_REPS = ["Jason Wingate", "Shannon Guilmet"];
+let roundRobinIndex = 0;
+
+function getNextRoundRobinRep() {
+  const rep = ROUND_ROBIN_REPS[roundRobinIndex % ROUND_ROBIN_REPS.length];
+  roundRobinIndex++;
+  return rep;
+}
+
+function assignRep(companyName, recommendedProducts = []) {
+  // Rule A: John Tucker if company name contains "bank" (case-insensitive)
+  if (companyName && /bank/i.test(companyName)) {
+    return "John Tucker";
+  }
+  // Rule A: John Tucker if recommended products include FI Branch or FI Virtual Vault
+  const productsLower = recommendedProducts.map((p) => p.toLowerCase());
+  const isFiProduct = JOHN_TUCKER_PRODUCTS.some((fp) =>
+    productsLower.includes(fp.toLowerCase())
+  );
+  if (isFiProduct) {
+    return "John Tucker";
+  }
+  // Rule B: SMB/Mid-Market round robin
+  return getNextRoundRobinRep();
+}
+
+async function sendRoamNotification(assignedRep, companyName, recordDetails, draftName) {
+  const roamWebhookUrl = process.env.ROAM_WEBHOOK_URL;
+  if (!roamWebhookUrl) {
+    console.warn("ROAM_WEBHOOK_URL not set — skipping Roam notification");
+    return { skipped: true, reason: "ROAM_WEBHOOK_URL not configured" };
+  }
+
+  const message = [
+    `New SDR Draft assigned`,
+    ``,
+    `Rep: ${assignedRep}`,
+    `Company: ${companyName}`,
+    `Draft Name: ${draftName}`,
+    ``,
+    `Key Details:`,
+    `  Industry: ${recordDetails.industry || "—"}`,
+    `  Market Size: ${recordDetails.market_size || "—"}`,
+    `  Recommended Products: ${(recordDetails.recommended_products || []).join(", ") || "—"}`,
+    `  HQ State: ${recordDetails.hq_state || "—"}`,
+    `  Vertical Fit: ${recordDetails.vertical_fit || "—"}`,
+    ``,
+    `Salesforce SDR Draft: ${recordDetails.sf_record_url || "(link not provided)"}`,
+  ].join("\n");
+
+  try {
+    const res = await fetch(roamWebhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        rep: assignedRep,
+        message,
+        company_name: companyName,
+        draft_name: draftName,
+        record_details: recordDetails,
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      console.error(`Roam notification failed (${res.status}):`, body);
+      return { success: false, status: res.status, body };
+    }
+    return { success: true };
+  } catch (err) {
+    console.error("Roam notification error:", err);
+    return { success: false, error: err.message };
+  }
+}
+
+// ── Create SDR Draft (validate → name → assign → notify) ──
+app.post("/create-sdr-draft", async (req, res) => {
+  const {
+    company_name,
+    contact_email,
+    recommended_products,
+    industry,
+    market_size,
+    hq_state,
+    vertical_fit,
+    sf_record_url,
+  } = req.body;
+
+  // ── 1. Email gate — MANDATORY ──────────────────────────────────────────────
+  // SDR Drafts MUST NOT be created without a valid contact email.
+  // If missing or blank: skip this record entirely. No placeholders.
+  if (!contact_email || typeof contact_email !== "string" || contact_email.trim() === "") {
+    console.log(`[SDR Draft] SKIPPED — no valid email for: ${company_name || "(unknown company)"}`);
+    return res.status(200).json({
+      skipped: true,
+      reason: "No valid contact email. Record skipped — not created.",
+      company_name: company_name || null,
+    });
+  }
+
+  // Basic email format check
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(contact_email.trim())) {
+    console.log(`[SDR Draft] SKIPPED — invalid email format for: ${company_name}`);
+    return res.status(200).json({
+      skipped: true,
+      reason: `Invalid email format (${contact_email}). Record skipped — not created.`,
+      company_name: company_name || null,
+    });
+  }
+
+  // ── 2. Company name required ───────────────────────────────────────────────
+  if (!company_name || typeof company_name !== "string" || company_name.trim() === "") {
+    return res.status(400).json({ error: "company_name is required to name the SDR Draft." });
+  }
+
+  // ── 3. Name the SDR Draft ──────────────────────────────────────────────────
+  // Format: SDR Draft - Company Name
+  const draftName = `SDR Draft - ${company_name.trim()}`;
+
+  // ── 4. Assignment logic ────────────────────────────────────────────────────
+  const assignedRep = assignRep(company_name.trim(), recommended_products || []);
+
+  // ── 5. Roam notification ───────────────────────────────────────────────────
+  const recordDetails = {
+    industry: industry || null,
+    market_size: market_size || null,
+    hq_state: hq_state || null,
+    vertical_fit: vertical_fit || null,
+    recommended_products: recommended_products || [],
+    sf_record_url: sf_record_url || null,
+    contact_email: contact_email.trim(),
+  };
+
+  const roamResult = await sendRoamNotification(
+    assignedRep,
+    company_name.trim(),
+    recordDetails,
+    draftName
+  );
+
+  // ── 6. Return payload for Salesforce to consume ────────────────────────────
+  // Salesforce flow calls this endpoint, reads the response, and creates
+  // the SDR Draft record using draft_name and assigned_rep.
+  return res.json({
+    skipped: false,
+    draft_name: draftName,
+    assigned_rep: assignedRep,
+    contact_email: contact_email.trim(),
+    company_name: company_name.trim(),
+    roam_notification: roamResult,
+  });
 });
 
 // ─── Start ───────────────────────────────────────────────────────────────────
