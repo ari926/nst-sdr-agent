@@ -1,6 +1,6 @@
 {
   "name": "nst-sdr-agent",
-  "version": "2.0.0",
+  "version": "2.4.0",
   "description": "NST SDR Intelligence Agent v2 — prospect research, call prep, and account enrichment powered by Perplexity Sonar",
   "main": "server.js",
   "scripts": {

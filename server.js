@@ -28,6 +28,14 @@ if (!process.env.PERPLEXITY_API_KEY) {
 // ─── System Prompt: The Brain ────────────────────────────────────────────────
 const SYSTEM_PROMPT = require("./system-prompt");
 
+// Enrichment libraries (self-sufficient mode)
+const sonar = require("./lib/sonar");
+const apollo = require("./lib/apollo");
+const sf = require("./lib/salesforce");
+const sdrRouter = require("./lib/router");
+
+const AUDIT_PREFIX = `AUDIT ${new Date().toISOString().slice(0, 10)} [nst-sdr-agent]`;
+
 // ─── Output Schemas ─────────────────────────────────────────────────────────
 
 // Full research schema — maps to Salesforce fields
@@ -738,13 +746,196 @@ app.post("/create-sdr-draft", async (req, res) => {
 });
 
 // ─── Start ───────────────────────────────────────────────────────────────────
+// Self-sufficient enrichment endpoints — pull an Account from Salesforce,
+// enrich it (Apollo if configured, else Sonar), and optionally write back.
+// Callable from SF Flow, cron, Zapier, etc. No Perplexity Computer dependency.
+
+async function enrichOneAccount({ account_id, write = false, include_contacts = true, target_roles }) {
+  if (!account_id) throw new Error("account_id is required");
+  if (!sf.isConfigured()) throw new Error("Salesforce not configured — see .env.example");
+
+  const account = await sf.getAccount(account_id, [
+    "Id", "Name", "Website", "Industry", "Phone",
+    "BillingStreet", "BillingCity", "BillingState", "BillingPostalCode", "BillingCountry",
+    "NumberOfEmployees", "Description",
+  ]);
+
+  const route = sdrRouter.routeByIndustry(account.Industry);
+
+  let domain = null;
+  if (account.Website) {
+    try {
+      const u = new URL(account.Website.startsWith("http") ? account.Website : `https://${account.Website}`);
+      domain = u.hostname.replace(/^www\./, "");
+    } catch (_) { /* invalid URL */ }
+  }
+
+  const provider = apollo.isConfigured() ? "apollo" : "sonar";
+  const enricher = apollo.isConfigured() ? apollo : sonar;
+  let org_enrichment = null;
+  let enrich_error = null;
+  try {
+    org_enrichment = await enricher.enrichOrg({ company_name: account.Name, company_domain: domain });
+  } catch (e) {
+    enrich_error = e.message;
+    if (provider === "apollo") {
+      try { org_enrichment = await sonar.enrichOrg({ company_name: account.Name, company_domain: domain }); }
+      catch (e2) { enrich_error = `${e.message}; sonar fallback: ${e2.message}`; }
+    }
+  }
+
+  let contact_discovery = null;
+  if (include_contacts) {
+    try {
+      contact_discovery = await enricher.findContacts({
+        company_name: account.Name,
+        company_domain: domain,
+        target_roles: target_roles || undefined,
+        limit: 3,
+      });
+    } catch (e) {
+      if (provider === "apollo") {
+        try {
+          contact_discovery = await sonar.findContacts({
+            company_name: account.Name,
+            company_domain: domain,
+            target_roles: target_roles || undefined,
+            limit: 3,
+          });
+        } catch (_) { /* skip */ }
+      }
+    }
+  }
+
+  const writes = { account_updated: false, contacts_upserted: [], task_created: null, errors: [] };
+  if (write && org_enrichment) {
+    const accountUpdate = {};
+    if (!account.Website && org_enrichment.website) accountUpdate.Website = org_enrichment.website;
+    if (!account.Phone && org_enrichment.phone) accountUpdate.Phone = org_enrichment.phone;
+    if (!account.NumberOfEmployees && org_enrichment.employee_count) accountUpdate.NumberOfEmployees = org_enrichment.employee_count;
+    if (!account.BillingStreet && org_enrichment.billing_street) accountUpdate.BillingStreet = org_enrichment.billing_street;
+    if (!account.BillingCity && org_enrichment.billing_city) accountUpdate.BillingCity = org_enrichment.billing_city;
+    if (!account.BillingState && org_enrichment.billing_state) accountUpdate.BillingState = org_enrichment.billing_state;
+    if (!account.BillingPostalCode && org_enrichment.billing_postal) accountUpdate.BillingPostalCode = org_enrichment.billing_postal;
+    if (!account.Description && org_enrichment.description) accountUpdate.Description = org_enrichment.description;
+
+    if (Object.keys(accountUpdate).length > 0) {
+      const fieldsList = Object.keys(accountUpdate).join(", ");
+      const stamp = `\n\n${AUDIT_PREFIX} ${provider} enrichment — fields populated: ${fieldsList}`;
+      accountUpdate.Description = (accountUpdate.Description || account.Description || "") + stamp;
+      try {
+        await sf.updateAccount(account.Id, accountUpdate);
+        writes.account_updated = true;
+      } catch (e) { writes.errors.push(`account_update: ${e.message}`); }
+    }
+
+    if (contact_discovery && Array.isArray(contact_discovery.contacts)) {
+      for (const c of contact_discovery.contacts) {
+        if (!c.first_name || !c.last_name) continue;
+        const payload = {
+          AccountId: account.Id,
+          FirstName: c.first_name,
+          LastName: c.last_name,
+          Title: c.title || undefined,
+          Email: c.email_guess || undefined,
+          Description: `${AUDIT_PREFIX} ${provider} contact discovery — confidence: ${c.email_confidence}; LinkedIn: ${c.linkedin_url || "n/a"}`,
+        };
+        try {
+          if (payload.Email) {
+            const r = await sf.upsertContactByEmail(payload);
+            writes.contacts_upserted.push({ id: r.id, created: r.created, name: `${c.first_name} ${c.last_name}` });
+          } else {
+            const r = await sf.createContact(payload);
+            writes.contacts_upserted.push({ id: r.id, created: true, name: `${c.first_name} ${c.last_name}` });
+          }
+        } catch (e) { writes.errors.push(`contact_${c.last_name}: ${e.message}`); }
+      }
+    }
+  }
+
+  return {
+    account_id: account.Id,
+    account_name: account.Name,
+    brand: route.brand,
+    provider,
+    enrich_error,
+    org_enrichment,
+    contact_discovery,
+    writes,
+  };
+}
+
+// POST /sf-enrich-account — enrich a single Salesforce Account
+app.post("/sf-enrich-account", async (req, res) => {
+  const { account_id, write = false, include_contacts = true, target_roles } = req.body || {};
+  if (!account_id) return res.status(400).json({ error: "account_id (string) is required" });
+  try {
+    const result = await enrichOneAccount({ account_id, write, include_contacts, target_roles });
+    return res.json(result);
+  } catch (e) {
+    console.error("sf-enrich-account error:", e);
+    return res.status(500).json({ error: e.message, code: e.code || null });
+  }
+});
+
+// POST /sf-bulk-enrich — enrich many Accounts matching a SOQL where clause
+app.post("/sf-bulk-enrich", async (req, res) => {
+  const { filter, limit = 25, write = false, include_contacts = true, target_roles } = req.body || {};
+  if (!filter) return res.status(400).json({ error: "filter (SOQL where clause) is required" });
+  if (limit > 200) return res.status(400).json({ error: "limit must be <= 200" });
+  if (!sf.isConfigured()) return res.status(500).json({ error: "Salesforce not configured" });
+
+  try {
+    const queryRes = await sf.queryAccounts(filter, ["Id", "Name"], limit);
+    const accounts = queryRes.records || [];
+    const results = [];
+    const errors = [];
+    for (const acc of accounts) {
+      try {
+        const r = await enrichOneAccount({ account_id: acc.Id, write, include_contacts, target_roles });
+        results.push({
+          account_id: acc.Id,
+          name: acc.Name,
+          brand: r.brand,
+          provider: r.provider,
+          account_updated: r.writes.account_updated,
+          contacts_upserted: r.writes.contacts_upserted.length,
+          errors: r.writes.errors,
+        });
+      } catch (e) {
+        errors.push({ account_id: acc.Id, name: acc.Name, error: e.message });
+      }
+    }
+    return res.json({ matched: accounts.length, processed: results.length, failed: errors.length, results, errors });
+  } catch (e) {
+    console.error("sf-bulk-enrich error:", e);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+// GET /sf-enrich-status — config check
+app.get("/sf-enrich-status", (_req, res) => {
+  res.json({
+    salesforce_configured: sf.isConfigured(),
+    apollo_configured: apollo.isConfigured(),
+    sonar_available: !!process.env.PERPLEXITY_API_KEY,
+    default_provider: apollo.isConfigured() ? "apollo" : "sonar",
+  });
+});
+
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`\n  NST SDR Intelligence Agent v2`);
+  console.log(`\n  NST SDR Intelligence Agent v2.4`);
   console.log(`  Model: ${MODEL}`);
   console.log(`  Endpoints:`);
-  console.log(`    POST /research    — Full prospect research + outreach (trigger-gated)`);
-  console.log(`    POST /call-prep   — Pre-meeting briefing`);
-  console.log(`    POST /enrich      — Quick account enrichment`);
-  console.log(`    GET  /health      — Health check`);
+  console.log(`    POST /research          — Full prospect research + outreach`);
+  console.log(`    POST /call-prep         — Pre-meeting briefing`);
+  console.log(`    POST /enrich            — Quick account enrichment`);
+  console.log(`    POST /sf-enrich-account — Self-sufficient SF Account enrichment`);
+  console.log(`    POST /sf-bulk-enrich    — Bulk SF Account enrichment by SOQL`);
+  console.log(`    GET  /sf-enrich-status  — Config check`);
+  console.log(`    GET  /health            — Health check`);
+  console.log(`\n  Salesforce configured: ${sf.isConfigured()}`);
+  console.log(`  Apollo configured:     ${apollo.isConfigured()}`);
+  console.log(`  Default provider:      ${apollo.isConfigured() ? "apollo" : "sonar"}`);
   console.log(`\n  Listening on http://0.0.0.0:${PORT}\n`);
 });
