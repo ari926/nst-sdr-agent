@@ -160,6 +160,77 @@ fly secrets set PERPLEXITY_API_KEY=pplx-your-key
 fly deploy
 ```
 
+## Self-Sufficient Salesforce Enrichment (v2.4)
+
+The agent can pull Accounts directly from Salesforce, enrich them, and write back — no Perplexity Computer or human in the loop. Designed to be called from Salesforce Flow, scheduled cron jobs, or Zapier.
+
+### Provider routing
+
+- **Apollo.io** — used if `APOLLO_API_KEY` is set. Gives verified emails, employee counts, revenue, phone (company main), LinkedIn, address.
+- **Sonar (Perplexity)** — automatic fallback. Discovers contacts via live web research and returns the same shape. No additional vendor cost beyond your existing `PERPLEXITY_API_KEY`.
+
+Industry routing is automatic via `lib/router.js`:
+- Cannabis-like industries (Dispensary, Cultivator, Processor, MRB) → **Talaria** brand voice
+- Banks, MSBs, cash-intensive retail, QSR, C-Store, etc. → **NST** brand voice (default)
+
+### `POST /sf-enrich-account` — Single Account
+
+Pulls one Account from SF, enriches it, optionally writes back.
+
+```json
+{
+  "account_id": "001xx0000ABCDE",
+  "write": true,
+  "include_contacts": true,
+  "target_roles": ["CFO", "VP Finance", "Director of Operations"]
+}
+```
+
+**Write behavior** (only when `write: true`):
+- Account fields are only updated where SF is currently blank (Website, Phone, Billing*, NumberOfEmployees, Description). Industry is **never** touched — that's off-limits per Talaria policy.
+- Top 3 discovered contacts upsert by Email (within AccountId scope) or insert if no email.
+- Every write appends an audit breadcrumb to `Description`: `AUDIT YYYY-MM-DD [nst-sdr-agent] {provider} enrichment — fields populated: ...`
+
+### `POST /sf-bulk-enrich` — Many Accounts
+
+Matches Accounts by SOQL where clause and fans out to single-account enrichment.
+
+```json
+{
+  "filter": "Industry = 'Bank' AND Website = null",
+  "limit": 50,
+  "write": false,
+  "include_contacts": true
+}
+```
+
+Returns a per-account summary plus aggregate counts. Sequential processing keeps SF API limits sane; `limit` is capped at 200 per call.
+
+### `GET /sf-enrich-status` — Config Check
+
+```json
+{
+  "salesforce_configured": true,
+  "apollo_configured": false,
+  "sonar_available": true,
+  "default_provider": "sonar"
+}
+```
+
+### Salesforce Connected App setup
+
+The agent uses OAuth 2.0 Username-Password flow (simplest for headless integrations).
+
+1. **Salesforce → Setup → App Manager → New Connected App**
+2. Enable OAuth Settings, set Callback URL to `https://login.salesforce.com/services/oauth2/success` (placeholder; not used in this flow)
+3. Selected OAuth Scopes: **Full access (full)** + **Perform requests at any time (refresh_token, offline_access)**
+4. Save. Wait 2-10 minutes for the app to propagate, then copy **Consumer Key** → `SF_CLIENT_ID` and **Consumer Secret** → `SF_CLIENT_SECRET`
+5. Create or pick an **integration user** (Salesforce license, API Only profile recommended)
+6. As that user: **Personal Settings → Reset My Security Token** → use the token as `SF_SECURITY_TOKEN`
+7. Set `SF_USERNAME` and `SF_PASSWORD` to that user's login credentials
+
+For sandboxes, set `SF_LOGIN_URL=https://test.salesforce.com`.
+
 ## Configuration
 
 | Env Variable | Default | Description |
@@ -167,6 +238,15 @@ fly deploy
 | `PERPLEXITY_API_KEY` | *(required)* | Perplexity API key |
 | `PORT` | `3000` | Server port |
 | `SONAR_MODEL` | `sonar-pro` | Model (`sonar` or `sonar-pro`) |
+| `ROAM_WEBHOOK_URL` | *(blank)* | Optional Roam webhook for SDR Draft notifications |
+| `SF_CLIENT_ID` | *(required for SF)* | Connected App consumer key |
+| `SF_CLIENT_SECRET` | *(required for SF)* | Connected App consumer secret |
+| `SF_USERNAME` | *(required for SF)* | Integration user login |
+| `SF_PASSWORD` | *(required for SF)* | Integration user password |
+| `SF_SECURITY_TOKEN` | *(required for SF)* | User security token |
+| `SF_LOGIN_URL` | `https://login.salesforce.com` | Use `https://test.salesforce.com` for sandbox |
+| `SF_API_VERSION` | `v60.0` | SF REST API version |
+| `APOLLO_API_KEY` | *(blank → Sonar fallback)* | Optional Apollo.io Basic key |
 
 ## License
 
