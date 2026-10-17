@@ -28,6 +28,9 @@ cp .env.example .env
 npm start
 ```
 
+For optional source discovery before a research request, see
+[Research prospect triggers with Parallel Search MCP](docs/parallel-research.md).
+
 ## Endpoints
 
 ### `POST /research` — Full Prospect Research (Primary)
